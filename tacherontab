@@ -1,0 +1,37 @@
+#!/bin/bash
+
+user="root"
+
+for option in "$@"
+do
+    case $option in
+
+    -u)
+        user=$(cut -d: -f1 /etc/passwd | grep $2)
+        if [ $user == "" ]
+        then
+            echo $user not found
+            exit 1 
+        fi
+        ;;
+
+    -l)
+        cat /etc/tacheron/tacherontab$user
+        ;;
+
+    -r)
+        sudo rm /etc/tacheron/tacherontab$user
+        ;;
+
+    -e)
+        tacherontabFile="tacherontab$user"
+        if [ -f $tacherontabFile ]
+        then
+            vi /etc/tacheron/$tacherontabFile
+        else
+            vi /tmp/$tacherontabFile
+            sudo find /tmp -type f -mtime 0 -exec mv {} /etc/tacheron/ \;
+        fi
+        ;;
+    esac
+done
