@@ -1,0 +1,7 @@
+#!/bin/bash
+
+mkdir /etc/tacheron
+
+touch /etc/tacheron.allow
+
+touch /etc/tacheron.deny
