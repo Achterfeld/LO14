@@ -7,12 +7,24 @@ do
     case $option in
 
     -u)
+        user=$(cat /etc/tacheron.deny | grep $2)
+        if [ $user != "" ]
+        then
+            echo $user deny
+            exit 1
+        fi
+        user=$(cat /etc/tacheron.allow | grep $2)
+        if [ $user == "" ]
+        then
+            echo $user not allow
+            exit 1
+        fi
         user=$(cut -d: -f1 /etc/passwd | grep $2)
         if [ $user == "" ]
         then
             echo $user not found
             exit 1 
-        fi
+        fi        
         ;;
 
     -l)
