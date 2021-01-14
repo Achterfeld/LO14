@@ -1,0 +1,181 @@
+#!/bin/bash
+
+isValidField() {
+
+    field="$1"
+
+    currentField=$2
+
+    if [[ $currentField =~ ^0[0-9]*$ ]]
+    then
+        currentField=$(echo $currentField | cut -c2)
+    fi
+
+    res=1
+
+    if [ "$field" == "$currentField" ]
+    then 
+        res=0
+    elif [[ "$field" =~ ^[0-9]*(,[0-9]*)*$ ]]
+    then
+        for i in $(echo "$field" | sed "s/,/ /g")
+        do
+            if [ "$i" == "$currentField" ]
+            then 
+                res=0
+            fi
+        done        
+    elif [ "$field" == "*" ]
+    then
+        res=0
+    elif [[ "$field" =~ ^[0-9]*-[0-9]*(~[0-9]*)*$ ]]
+    then
+        for i in `seq $(echo "$field" | cut -d"~" -f1 | cut -d"-" -f1) $(echo "$field" | cut -d"~" -f1 | cut -d"-" -f2)`
+        do
+            isDesactivate=1
+            j=2
+            if [[ "$field" =~ ~[0-9]* ]]
+            then
+                while [[ $(echo "$field" | cut -d"~" -f$j) != "" ]]
+                do
+                    if [[ "$currentField" == $(echo "$field" | cut -d"~" -f$j) ]]
+                    then
+                        isDesactivate=0
+                    fi
+                    ((j++))
+                done
+            fi
+            if [[ $i =~ ^0[0-9]*$ ]]
+            then
+                i=$(echo $currentField | cut -c2)
+            fi
+            if [[ $i == $currentField && $isDesactivate == 1 ]]
+            then
+                res=0
+            fi
+            isDesactivate=1
+        done
+    elif [[ "$field" =~ ^"*/"[0-9]*$ ]]
+    then
+        divisionNumber=$(echo "$field" | cut -d"/" -f2)
+        if [ $(($currentField%$divisionNumber)) == 0 ]
+        then
+            res=0
+        fi
+    elif [[ "$field" =~ ^[0-9]*(-[0-9]*)"/"[0-9]*$ ]]
+    then
+        for i in `seq $(echo "$field" | cut -d"/" -f1 | cut -d"-" -f1) $(echo "$field" | cut -d"/" -f1 | cut -d"-" -f2)`
+        do  
+            divisionNumber=$(echo "$field" | cut -d"/" -f2)    
+            if [[ $(($currentField%$divisionNumber)) == 0 && $i == "$currentField" ]]
+            then
+                res=0
+            fi
+        done    
+    fi
+
+    return $res
+}
+
+
+isNow () {
+
+    line=$1
+
+    for i in `seq 1 6`
+    do
+        case $i in
+
+        1)
+            second=$(echo "$line" | head -n1 | cut -d " " -f$i)
+            if [[ "$second" =~ ^[0-9]*$ ]] 
+            then
+                second=$(($second*15))
+            fi
+            ;;
+        2)
+            minute=$(echo "$line" | head -n1 | cut -d " " -f$i)
+            ;;
+        3)
+            hour=$(echo "$line" | head -n1 | cut -d " " -f$i)
+            ;;
+        4)
+            dayNumber=$(echo "$line" | head -n1 | cut -d " " -f$i)
+            ;;
+        5)
+            month=$(echo "$line" | head -n1 | cut -d " " -f$i)
+            ;;
+        6)
+            dayWeek=$(echo "$line" | head -n1 | cut -d " " -f$i)
+            if [ "$dayWeek" == '0' ] 
+            then
+                dayWeek=7
+            fi
+            ;;
+        esac
+
+    done
+
+    res=1
+
+    if isValidField "$month" $(date +%m)
+    then
+        if isValidField "$dayNumber" $(date +%d)
+        then
+            if isValidField "$hour" $(date +%H)
+            then
+                if isValidField "$minute" $(date +%M)
+                then
+                    if isValidField "$second" $(date +%S)
+                    then
+                        if isValidField "$dayWeek" $(date +%u)
+                        then 
+
+                            res=0
+
+                        fi
+                    fi
+                fi
+            fi
+        fi
+    fi
+
+    return $res
+}
+
+user="root"
+
+if [ "$1" == "-u" ]
+then
+    user=$(cat /etc/tacheron.deny | grep $2)
+    if [ "$user" != "" ]
+    then
+        echo $user deny
+        exit 1
+    fi
+    user=$(cat /etc/tacheron.allow | grep $2)
+    if [ "$user" == "" ]
+    then
+        echo $user not allow
+        exit 1
+    fi
+    user=$(cut -d: -f1 /etc/passwd | grep $2)
+    if [ "$user" == "" ]
+    then
+        echo $user not found
+        exit 1 
+    fi
+fi
+while true
+do
+    while read line
+    do
+        if isNow "$line"
+        then
+            action=$(echo "$line" | awk '{for (i=7; i<NF; i++) printf $i " "; print $NF}')
+            $action
+            sudo echo $(date) : $user : $action >> /var/log/tacheron
+        fi
+    done </etc/tacheron/tacherontab$user
+
+done
